@@ -1,0 +1,37 @@
+[project]
+name = "conversational-voice-rag"
+version = "0.1.0"
+description = "Persian-first conversational voice RAG with LiveKit, interruption handling, and hybrid retrieval"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "livekit-agents[openai,silero]>=1.8,<2",
+    "python-dotenv>=1.0,<2",
+    "openai>=1.70,<3",
+]
+
+[project.optional-dependencies]
+documents = ["pymupdf>=1.25,<2", "python-docx>=1.1,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.10,<1"]
+
+[project.scripts]
+voice-rag-index = "voice_rag.ingest:main"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voice_rag"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
