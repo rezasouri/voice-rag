@@ -99,3 +99,24 @@ def test_gpu_dependency_error_message():
         monkeypatch.setattr("voice_rag.realtime_whisper.ctypes.CDLL", fail_library)
         with pytest.raises(SystemExit, match="scripts/run-whisper-cuda.sh"):
             _check_gpu_runtime()
+
+def test_two_pass_decoder_uses_beam_five_for_final():
+    from voice_rag.realtime_whisper import _decode_settings
+
+    partial = _decode_settings(
+        final=False,
+        partial_beam_size=1,
+        final_beam_size=5,
+        initial_prompt="",
+    )
+    final = _decode_settings(
+        final=True,
+        partial_beam_size=1,
+        final_beam_size=5,
+        initial_prompt="کتاب، دانشگاه",
+    )
+    assert partial["beam_size"] == 1
+    assert final["beam_size"] == 5
+    assert partial["language"] == final["language"] == "fa"
+    assert partial["initial_prompt"] is None
+    assert final["initial_prompt"] == "کتاب، دانشگاه"

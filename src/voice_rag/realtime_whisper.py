@@ -179,11 +179,33 @@ def _check_gpu_runtime() -> None:
             ) from exc
 
 
+def _decode_settings(
+    *,
+    final: bool,
+    partial_beam_size: int,
+    final_beam_size: int,
+    initial_prompt: str,
+) -> dict[str, object]:
+    """Use fast previews and more careful final utterance decoding."""
+    return {
+        "language": "fa",
+        "beam_size": final_beam_size if final else partial_beam_size,
+        "best_of": 1,
+        "temperature": 0.0,
+        "condition_on_previous_text": False,
+        "vad_filter": False,  # WebRTC VAD already handles turn boundaries.
+        "initial_prompt": initial_prompt or None,
+    }
+
+
 def _decode_worker(
     model: object,
     jobs: JobBuffer,
     output: queue.Queue[Result],
     fatal_error: threading.Event,
+    partial_beam_size: int,
+    final_beam_size: int,
+    initial_prompt: str,
 ) -> None:
     import numpy as np
 
@@ -194,12 +216,12 @@ def _decode_worker(
             # The returned iterable is lazy; iterating actually performs inference.
             segments, _ = model.transcribe(  # type: ignore[attr-defined]
                 pcm,
-                language="fa",
-                beam_size=1,
-                best_of=1,
-                temperature=0.0,
-                condition_on_previous_text=False,
-                vad_filter=False,  # segmentation handled by WebRTC VAD above
+                **_decode_settings(
+                    final=job.final,
+                    partial_beam_size=partial_beam_size,
+                    final_beam_size=final_beam_size,
+                    initial_prompt=initial_prompt,
+                ),
             )
             text = " ".join(seg.text.strip() for seg in segments).strip()
             output.put(
@@ -271,6 +293,18 @@ def _arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--silence-ms", type=int, default=750, help="Finalize after silence")
     parser.add_argument("--max-utterance-s", type=float, default=20.0)
+    parser.add_argument(
+        "--partial-beam-size", type=int, default=1,
+        help="Fast partial hypotheses; 1 keeps interim text responsive",
+    )
+    parser.add_argument(
+        "--final-beam-size", type=int, default=5,
+        help="More accurate decoding after a sentence ends; increases final latency",
+    )
+    parser.add_argument(
+        "--initial-prompt", default="",
+        help="Optional Persian vocabulary hint; use short domain terms, not instructions",
+    )
     parser.add_argument("--vad-mode", type=int, choices=range(4), default=2)
     parser.add_argument("--input-device", default=None, help="Microphone ID or name")
     parser.add_argument("--list-devices", action="store_true")
@@ -280,6 +314,8 @@ def _arg_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _arg_parser().parse_args()
+    if not 1 <= args.partial_beam_size <= 10 or not 1 <= args.final_beam_size <= 10:
+        raise SystemExit("--partial-beam-size and --final-beam-size must be within 1..10")
     # Import native packages only in the real CLI path; tests require no mic or model.
     try:
         import sounddevice as sd
@@ -320,7 +356,15 @@ def main() -> None:
     fatal_error = threading.Event()
     worker = threading.Thread(
         target=_decode_worker,
-        args=(model, jobs, results, fatal_error),
+        args=(
+            model,
+            jobs,
+            results,
+            fatal_error,
+            args.partial_beam_size,
+            args.final_beam_size,
+            args.initial_prompt,
+        ),
         name="whisper-worker",
         daemon=True,
     )
@@ -346,6 +390,7 @@ def main() -> None:
     worker.start()
     print(
         f"🎙️  Speak Persian. Update request every {args.interval_ms}ms. "
+        f"Final beam={args.final_beam_size}, partial beam={args.partial_beam_size}. "
         f"End-of-utterance silence: {args.silence_ms}ms. Ctrl+C to stop.",
         flush=True,
     )

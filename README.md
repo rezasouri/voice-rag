@@ -100,6 +100,42 @@ See [`docs/acceptance.md`](docs/acceptance.md) for hands-on tests focused on nat
 - https://docs.livekit.io/agents/server/startup-modes/
 
 
+### Improve Persian accuracy without sacrificing interim update frequency
+
+For speech in Persian, compare the **finalized** lines (numbered `[1]`, `[2]`, ...)
+rather than interim `…` hypotheses. Whisper is a chunked model, not a native
+streaming recognizer: intermediate text can be revised. We keep a 300 ms
+**partial update request interval**, decode those quick previews with beam=1,
+and re-decode the complete utterance with beam=5 (now the default). Final
+transcripts may take longer than partials.
+
+A good starting profile on an NVIDIA GPU:
+
+```bash
+bash scripts/run-whisper-cuda.sh --model large-v3-turbo --interval-ms 300 --silence-ms 1000 --final-beam-size 5
+```
+
+For an alternative accuracy-versus-latency comparison:
+
+```bash
+bash scripts/run-whisper-cuda.sh --model medium --interval-ms 300 --silence-ms 1000 --final-beam-size 5
+```
+
+Use the **same spoken sample** to compare errors and latency. The best model for
+your Persian accent and microphone is empirical, not guaranteed from model size.
+If the final text contains incorrect specialized words, add a short vocabulary
+hint (do not supply a long instruction):
+
+```bash
+bash scripts/run-whisper-cuda.sh --model medium --interval-ms 300 --silence-ms 1000 --initial-prompt "مکالمه، هوش مصنوعی، بازیابی اسناد، مدل زبانی"
+```
+
+If quiet words are dropped, try `--vad-mode 1`. If sentences split when you pause,
+increase `--silence-ms`; this **adds to finalization delay**, not the interval
+between interim update requests. To isolate input quality, test a headset mic,
+different input device, and a quiet room. More aggressive decoding cannot fix
+a distorted microphone signal.
+
 ## Test local Persian real-time speech recognition (no API key)
 
 This is a **separate standalone microphone tool**, not the Voice RAG agent. It uses
