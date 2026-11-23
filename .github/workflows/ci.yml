@@ -17,3 +17,6 @@ jobs:
         run: uv run pytest -q
       - name: Compile Python sources
         run: uv run python -m compileall -q src tests
+
+      - name: Validate CUDA launcher syntax
+        run: bash -n scripts/run-whisper-cuda.sh

@@ -79,3 +79,23 @@ def test_custom_interval_validation():
         pass
     else:
         raise AssertionError("invalid interval must be rejected")
+
+def test_gpu_dependency_error_message():
+    import pytest
+
+    from voice_rag.realtime_whisper import (
+        _check_gpu_runtime,
+        _is_missing_gpu_runtime_error,
+    )
+
+    assert _is_missing_gpu_runtime_error("Library libcublas.so.12 is not found")
+    assert _is_missing_gpu_runtime_error("Library libcudnn.so.9 is not found")
+    assert not _is_missing_gpu_runtime_error("Microphone disconnected")
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        def fail_library(name):
+            raise OSError(f"missing {name}")
+
+        monkeypatch.setattr("voice_rag.realtime_whisper.ctypes.CDLL", fail_library)
+        with pytest.raises(SystemExit, match="scripts/run-whisper-cuda.sh"):
+            _check_gpu_runtime()

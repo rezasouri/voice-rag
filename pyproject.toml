@@ -19,6 +19,11 @@ mic = [
     "webrtcvad-wheels>=2.0.14,<3",
 ]
 
+cuda = [
+    "nvidia-cublas-cu12>=12,<13; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "nvidia-cudnn-cu12>=9,<10; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.10,<1"]
 

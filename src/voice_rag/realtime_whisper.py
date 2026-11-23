@@ -9,6 +9,7 @@ No API key or server is required.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import math
 import queue
 import sys
@@ -159,10 +160,30 @@ class JobBuffer:
             return len(self._jobs)
 
 
+def _is_missing_gpu_runtime_error(message: str) -> bool:
+    lower = message.lower()
+    return any(name in lower for name in ("libcublas", "libcudnn", "libcublaslt"))
+
+
+def _check_gpu_runtime() -> None:
+    """Diagnose missing CUDA libraries before opening the microphone."""
+    for name in ("libcublas.so.12", "libcudnn.so.9"):
+        try:
+            ctypes.CDLL(name)
+        except OSError as exc:
+            raise SystemExit(
+                f"GPU runtime missing: {name}: {exc}\n"
+                "Fix: bash scripts/run-whisper-cuda.sh --model small --interval-ms 300\n"
+                "Fallback: uv run --extra mic voice-rag-whisper --device cpu "
+                "--model base --compute-type int8"
+            ) from exc
+
+
 def _decode_worker(
     model: object,
     jobs: JobBuffer,
     output: queue.Queue[Result],
+    fatal_error: threading.Event,
 ) -> None:
     import numpy as np
 
@@ -194,6 +215,9 @@ def _decode_worker(
                     error=f"{type(exc).__name__}: {exc}",
                 )
             )
+            if _is_missing_gpu_runtime_error(str(exc)):
+                fatal_error.set()
+                return  # Prevent an infinite stream of identical library errors.
 
 
 def _display(result: Result, *, finished: set[int], output_path: Path | None) -> None:
@@ -284,6 +308,8 @@ def main() -> None:
     except ImportError as exc:
         raise SystemExit("Missing microphone ASR packages. Run: uv sync --extra mic") from exc
 
+    if args.device == "cuda":
+        _check_gpu_runtime()
     print(f"Loading faster-whisper model={args.model}, device={args.device} …", flush=True)
     model = WhisperModel(args.model, device=args.device, compute_type=args.compute_type)
     vad = webrtcvad.Vad(args.vad_mode)
@@ -291,8 +317,12 @@ def main() -> None:
     results: queue.Queue[Result] = queue.Queue()
     jobs = JobBuffer()
     finished: set[int] = set()
+    fatal_error = threading.Event()
     worker = threading.Thread(
-        target=_decode_worker, args=(model, jobs, results), name="whisper-worker", daemon=True
+        target=_decode_worker,
+        args=(model, jobs, results, fatal_error),
+        name="whisper-worker",
+        daemon=True,
     )
     dropped = 0
 
@@ -329,6 +359,13 @@ def main() -> None:
             callback=callback,
         ):
             while True:
+                if fatal_error.is_set():
+                    _drain(results, finished=finished, output_path=args.output)
+                    print(
+                        "GPU runtime failure. Use scripts/run-whisper-cuda.sh or --device cpu.",
+                        file=sys.stderr,
+                    )
+                    break
                 try:
                     frame = frames.get(timeout=0.05)
                 except queue.Empty:
@@ -345,7 +382,7 @@ def main() -> None:
         print("\nStopping…", flush=True)
     finally:
         final = tracker.flush(time.monotonic())
-        if final:
+        if final and not fatal_error.is_set():
             jobs.put(final)
         jobs.close()
         worker.join(timeout=10)

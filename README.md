@@ -126,19 +126,34 @@ uv run --extra mic voice-rag-whisper --list-devices
 uv run --extra mic voice-rag-whisper --model small --device auto --interval-ms 300
 ```
 
-For NVIDIA GPU, CTranslate2 must have compatible CUDA/cuDNN libraries available;
-if GPU initialization fails, try the CPU fallback:
+### GPU: fix missing libcublas.so.12 on Ubuntu
+
+The current CTranslate2 GPU backend requires CUDA 12 cuBLAS and cuDNN 9.
+The audio/microphone library `libportaudio2` is unrelated to these GPU dependencies.
+Use the self-contained launcher from your repository root:
 
 ```bash
-uv run --extra mic voice-rag-whisper --model base --device cpu --compute-type int8
+git pull origin main
+bash scripts/run-whisper-cuda.sh --model small --interval-ms 300
 ```
 
-For an NVIDIA GPU already configured with compatible CUDA libraries:
+The launcher installs the required NVIDIA runtime libraries into the uv virtual
+environment and sets `LD_LIBRARY_PATH` **before** launching Python. This requires
+a working NVIDIA driver (`nvidia-smi`), Linux x86_64, and enough free disk space
+to download the sizeable cuBLAS/cuDNN runtime packages. It does not install
+a system-wide CUDA Toolkit. The script checks for missing libraries first.
+
+**Immediate CPU fallback**, with no NVIDIA libraries needed:
 
 ```bash
-uv run --extra mic voice-rag-whisper --model small --device cuda --compute-type float16 --interval-ms 300
+uv run --extra mic voice-rag-whisper --model base --device cpu --compute-type int8 --interval-ms 300
 ```
 
+Explicit `--device cuda` now fails early with a single actionable error message
+if required libraries are unavailable. Unexpected GPU errors during decoding
+also stop processing rather than printing the same missing-library error repeatedly.
+
+Source: https://github.com/SYSTRAN/faster-whisper#gpu
 If you have multiple microphones, use `--list-devices` then
 `--input-device <ID-or-name>`. Save final transcriptions:
 
