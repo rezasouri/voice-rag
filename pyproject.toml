@@ -12,12 +12,19 @@ dependencies = [
 
 [project.optional-dependencies]
 documents = ["pymupdf>=1.25,<2", "python-docx>=1.1,<2"]
+mic = [
+    "faster-whisper>=1.1,<2",
+    "sounddevice>=0.5,<1",
+    "numpy>=1.26,<3",
+    "webrtcvad-wheels>=2.0.14,<3",
+]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.10,<1"]
 
 [project.scripts]
 voice-rag-index = "voice_rag.ingest:main"
+voice-rag-whisper = "voice_rag.realtime_whisper:main"
 
 [build-system]
 requires = ["hatchling>=1.27"]

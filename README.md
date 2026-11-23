@@ -98,3 +98,58 @@ See [`docs/acceptance.md`](docs/acceptance.md) for hands-on tests focused on nat
 - https://docs.livekit.io/agents/models/stt/openai/
 - https://docs.livekit.io/agents/models/tts/openai/
 - https://docs.livekit.io/agents/server/startup-modes/
+
+
+## Test local Persian real-time speech recognition (no API key)
+
+This is a **separate standalone microphone tool**, not the Voice RAG agent. It uses
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper), WebRTC VAD and sounddevice.
+It loads a multilingual Whisper model locally, fixes the speech language to Persian
+(fa), and displays **revised partial text during speech** plus **final sentences after silence**.
+
+The microphone is sampled at 16 kHz mono PCM; 30 ms frames are analyzed by VAD.
+The model receives an updated utterance snapshot **every 300 ms** while you talk;
+a dedicated worker runs inference without blocking microphone capture.
+Old queued *partial* requests are replaced by the latest one when inference is slow,
+but final utterances are never dropped. **300 ms is the requested update interval,
+not an end-to-end latency SLA**. Actual text display can be slower on CPU or with
+large models. This is pseudo-streaming: partial hypotheses can change until finalized.
+
+### Ubuntu / Linux
+
+\`\`\`bash
+sudo apt update
+sudo apt install -y libportaudio2
+git pull origin main
+uv sync --extra mic
+uv run --extra mic voice-rag-whisper --list-devices
+uv run --extra mic voice-rag-whisper --model small --device auto --interval-ms 300
+\`\`\`
+
+For NVIDIA GPU, CTranslate2 must have compatible CUDA/cuDNN libraries available;
+if GPU initialization fails, try the CPU fallback:
+
+\`\`\`bash
+uv run --extra mic voice-rag-whisper --model base --device cpu --compute-type int8
+\`\`\`
+
+For an NVIDIA GPU already configured with compatible CUDA libraries:
+
+\`\`\`bash
+uv run --extra mic voice-rag-whisper --model small --device cuda --compute-type float16 --interval-ms 300
+\`\`\`
+
+If you have multiple microphones, use \`--list-devices\` then
+\`--input-device <ID-or-name>\`. Save final transcriptions:
+
+\`\`\`bash
+uv run --extra mic voice-rag-whisper --model small --interval-ms 300 --output transcripts.txt
+\`\`\`
+
+Speak Persian naturally, allow a ~750 ms silence between phrases, press **Ctrl+C** to
+stop. Use \`--silence-ms 1000\` if short natural pauses split your sentences.
+Use \`--vad-mode 1\` if quiet speech is ignored (0–3; higher is stricter).
+The first run downloads the Whisper model; later runs reuse the local cache.
+No OpenAI, OpenRouter or NaraRouter key is required for this standalone test.
+Models and microphone samples stay local during inference; initial model download
+uses the public Hugging Face hub.

@@ -11,8 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - name: Install dependencies
-        run: uv sync --group dev
+      - name: Install dependencies including local microphone backend
+        run: uv sync --group dev --extra mic
       - name: Test
         run: uv run pytest -q
       - name: Compile Python sources
