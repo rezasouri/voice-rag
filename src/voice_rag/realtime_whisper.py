@@ -308,6 +308,11 @@ def main() -> None:
         except queue.Full:
             dropped += 1
 
+    device = (
+        int(args.input_device)
+        if args.input_device is not None and args.input_device.isdecimal()
+        else args.input_device
+    )
     worker.start()
     print(
         f"🎙️  Speak Persian. Update request every {args.interval_ms}ms. "
@@ -320,7 +325,7 @@ def main() -> None:
             blocksize=FRAME_SAMPLES,
             channels=1,
             dtype="int16",
-            device=args.input_device,
+            device=device,
             callback=callback,
         ):
             while True:

@@ -117,38 +117,38 @@ large models. This is pseudo-streaming: partial hypotheses can change until fina
 
 ### Ubuntu / Linux
 
-\`\`\`bash
+```bash
 sudo apt update
 sudo apt install -y libportaudio2
 git pull origin main
 uv sync --extra mic
 uv run --extra mic voice-rag-whisper --list-devices
 uv run --extra mic voice-rag-whisper --model small --device auto --interval-ms 300
-\`\`\`
+```
 
 For NVIDIA GPU, CTranslate2 must have compatible CUDA/cuDNN libraries available;
 if GPU initialization fails, try the CPU fallback:
 
-\`\`\`bash
+```bash
 uv run --extra mic voice-rag-whisper --model base --device cpu --compute-type int8
-\`\`\`
+```
 
 For an NVIDIA GPU already configured with compatible CUDA libraries:
 
-\`\`\`bash
+```bash
 uv run --extra mic voice-rag-whisper --model small --device cuda --compute-type float16 --interval-ms 300
-\`\`\`
+```
 
-If you have multiple microphones, use \`--list-devices\` then
-\`--input-device <ID-or-name>\`. Save final transcriptions:
+If you have multiple microphones, use `--list-devices` then
+`--input-device <ID-or-name>`. Save final transcriptions:
 
-\`\`\`bash
+```bash
 uv run --extra mic voice-rag-whisper --model small --interval-ms 300 --output transcripts.txt
-\`\`\`
+```
 
 Speak Persian naturally, allow a ~750 ms silence between phrases, press **Ctrl+C** to
-stop. Use \`--silence-ms 1000\` if short natural pauses split your sentences.
-Use \`--vad-mode 1\` if quiet speech is ignored (0–3; higher is stricter).
+stop. Use `--silence-ms 1000` if short natural pauses split your sentences.
+Use `--vad-mode 1` if quiet speech is ignored (0–3; higher is stricter).
 The first run downloads the Whisper model; later runs reuse the local cache.
 No OpenAI, OpenRouter or NaraRouter key is required for this standalone test.
 Models and microphone samples stay local during inference; initial model download
